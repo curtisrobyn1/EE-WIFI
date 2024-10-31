@@ -86,7 +86,7 @@ stop() {
 	rm $PIDFILECUTLOG
 	rm $PIDFILETLS
 	wget --no-check-certificate -T 2 -O /dev/null 'https://192.168.23.21:8443/accountLogoff/home?confirmed=true'
-	logger -t EEWi-fi_Autologin_Service "$(date) BTWi-fi Autologin Service Stopped Manually (Or Reboot)"
+	logger -t EEWi-fi_Autologin_Service "$(date) EEWi-fi Autologin Service Stopped Manually (Or Reboot)"
 	echo "$(date) SERVICE STOP! BTWi-fi Autologin Service Stopped Manually (Or Reboot)" >> "$LOGPATH"
 }
 
