@@ -47,7 +47,7 @@ PIDFILETLS=/var/run/TLS_Installer.pid
 OPENWRT_VERSION=$(cat /etc/openwrt_release | grep '^DISTRIB_RELEASE' | awk -F= '{print $2}' | tr -d '"')
 
 start() {
-logger -t BTWi-fi_Autologin_Service "$(date) BTWi-fi Autologin Service Started"
+logger -t EEWi-fi_Autologin_Service "$(date) BTWi-fi Autologin Service Started"
 echo "$(date) SERVICE START! EEWI-fi Autologin Service" >> "$LOGPATH"
 if [ -n "$OPENWRT_VERSION" ]
 then
@@ -71,7 +71,7 @@ else
 	printf "%s" "$!" > $PIDFILECUTLOG
 fi
 else
-	logger -t BTWi-fi_Autologin_Service "$(date) ERROR! Failed to determine OpenWrt version."
+	logger -t EEWi-fi_Autologin_Service "$(date) ERROR! Failed to determine OpenWrt version."
 	echo " ERROR! Failed to determine OpenWrt version."
 	exit 1
 fi
@@ -86,7 +86,7 @@ stop() {
 	rm $PIDFILECUTLOG
 	rm $PIDFILETLS
 	wget --no-check-certificate -T 2 -O /dev/null 'https://192.168.23.21:8443/accountLogoff/home?confirmed=true'
-	logger -t BTWi-fi_Autologin_Service "$(date) BTWi-fi Autologin Service Stopped Manually (Or Reboot)"
+	logger -t EEWi-fi_Autologin_Service "$(date) BTWi-fi Autologin Service Stopped Manually (Or Reboot)"
 	echo "$(date) SERVICE STOP! BTWi-fi Autologin Service Stopped Manually (Or Reboot)" >> "$LOGPATH"
 }
 
@@ -184,18 +184,18 @@ then
 		then
 			if [ "$ACCOUNTTYPE" = "1" ]
 			then
-				logger -t BTWi-fi_Autologin_Service "$(date) Offline, attempting login URL 1 (BT Home Broadband Account)"
+				logger -t EEWi-fi_Autologin_Service "$(date) Offline, attempting login URL 1 (EE Home Broadband Account)"
 				echo "$(date) Offline, attempting login URL 1 (EE Home Broadband Account)" >> "$LOGPATH"
 				wget --no-check-certificate -T 2 -O /dev/null --post-data "username=$USERNAME&password=$PASSWORD" 'https://192.168.23.21:8443/tbbLogon'
 			elif [ "$ACCOUNTTYPE" = "2" ]
 			then
-				logger -t BTWi-fi_Autologin_Service "$(date) Offline, attempting login URL 2 (BT Buisness Broadband Account)"
-				echo "$(date) Offline, attempting login URL 2 (BT Buisness Broadband Account)" >> "$LOGPATH"
+				logger -t BTWi-fi_Autologin_Service "$(date) Offline, attempting login URL 2 (EE Buisness Broadband Account)"
+				echo "$(date) Offline, attempting login URL 2 (EE Buisness Broadband Account)" >> "$LOGPATH"
 				wget --no-check-certificate -T 2 -O /dev/null --post-data "username=$USERNAME&password=$PASSWORD" 'https://192.168.23.21:8443/ante?partnerNetwork=btb'
 			elif [ "$ACCOUNTTYPE" = "3" ]
 			then
-				logger -t BTWi-fi_Autologin_Service "$(date) Offline, attempting login URL 3 (BT Wi-Fi Account)"
-				echo "$(date) Offline, attempting login URL 3 (BT Wi-Fi Account)" >> "$LOGPATH"
+				logger -t EEWi-fi_Autologin_Service "$(date) Offline, attempting login URL 3 (EE Wi-Fi Account)"
+				echo "$(date) Offline, attempting login URL 3 (EE Wi-Fi Account)" >> "$LOGPATH"
 				wget --no-check-certificate -T 2 -O /dev/null --post-data "username=$USERNAME&password=$PASSWORD" 'https://192.168.23.21:8443/ante'
 			fi
 		fi
