@@ -1,0 +1,220 @@
+#!/bin/sh /etc/rc.common
+
+#######--  EE Wi-Fi Autologin Service Openwrt v5 --########
+#######-    By: Aidan Macgregor (September 2023)  -########
+
+#######-    h https://github.com/curtisrobyn1/EE-WIFI/new/main?filename=README.md    -########
+#######--  (Tested On OpenWrt 15.05.1 - 23.05)   --########
+
+#->->->-> INFORMATION <-<-<-<-#
+
+### Manual Run & Stop (Stopping Also Signs The Account Out)
+#       Click Start/Stop on the service in LUCI (System > Startup)
+
+### Automatically Start On Boot
+#       Enable the service in LUCI (System > Startup)
+
+### In The Local Startup Section (System > Startup > Local Starup)
+#       Choose Your Account Type & Add Email & Password
+
+### Account Types
+#       1 = EE Home Broadband
+#       2 = EE Buisness Broadband
+#       3 = EE Wi-Fi Account
+
+#->->->-> SETTINGS <-<-<-<-#
+
+ACCOUNTTYPE=$(grep '#ACCTYPE=' /etc/rc.local | sed -r 's/^.{9}//')
+USERNAME=$(grep '#USERNAME=' /etc/rc.local | sed -r 's/^.{10}//')
+PASSWORD=$(grep '#PASSWORD=' /etc/rc.local | sed -r 's/^.{10}//')
+
+#->->->-> OPTIONAL SETTINGS <-<-<-<-#
+
+LOGSIZE=$(grep '#LOGSIZE=' /etc/rc.local | sed -r 's/^.{9}//')
+PING1=$(grep '#PING1=' /etc/rc.local | sed -r 's/^.{7}//')
+PING2=$(grep '#PING2=' /etc/rc.local | sed -r 's/^.{7}//')
+LOGPATH=$(grep '#LOGPATH=' /etc/rc.local | sed -r 's/^.{9}//')
+
+##########################################
+#####---- DO NOT EDIT BELOW HERE ----#####
+##########################################
+
+START=99
+STOP=1
+PIDFILELOGIN=/var/run/EE_Wi-fi_Autologin.pid
+PIDFILECUTLOG=/var/run/EE_Wi-fi_Logfile.pid
+PIDFILETLS=/var/run/TLS_Installer.pid
+OPENWRT_VERSION=$(cat /etc/openwrt_release | grep '^DISTRIB_RELEASE' | awk -F= '{print $2}' | tr -d '"')
+
+start() {
+logger -t BTWi-fi_Autologin_Service "$(date) BTWi-fi Autologin Service Started"
+echo "$(date) SERVICE START! EEWI-fi Autologin Service" >> "$LOGPATH"
+if [ -n "$OPENWRT_VERSION" ]
+then
+	if [ -n "$OPENWRT_VERSION" ]; then
+		if [ "$OPENWRT_VERSION" -lt 150501 ]; then
+			echo "$(date) ERROR! OpenWrt version $OPENWRT_VERSION is not supported by this service."
+			echo "ERROR! This service is designed for OpenWrt versions 15.05.1 or later."
+			exit 1
+else
+	[ -f $PIDFILETLS ] && [ ! -d /proc/"$(cat $PIDFILETLS)" ] && rm $PIDFILETLS
+	[ -f $PIDFILETLS ] && exit 1
+	tls_loop &
+	printf "%s" "$!" > $PIDFILETLS
+	[ -f $PIDFILELOGIN ] && [ ! -d /proc/"$(cat $PIDFILELOGIN)" ] && rm $PIDFILELOGIN
+	[ -f $PIDFILELOGIN ] && exit 1
+	btwifi_loop &
+	printf "%s" "$!" > $PIDFILELOGIN
+	[ -f $PIDFILECUTLOG ] && [ ! -d /proc/"$(cat $PIDFILECUTLOG)" ] && rm $PIDFILECUTLOG
+	[ -f $PIDFILECUTLOG ] && exit 1
+	cleanlog_loop &
+	printf "%s" "$!" > $PIDFILECUTLOG
+fi
+else
+	logger -t BTWi-fi_Autologin_Service "$(date) ERROR! Failed to determine OpenWrt version."
+	echo " ERROR! Failed to determine OpenWrt version."
+	exit 1
+fi
+fi
+}
+
+stop() {
+	kill "$(cat $PIDFILELOGIN)"
+	kill "$(cat $PIDFILECUTLOG)"
+	kill "$(cat $PIDFILETLS)"
+	rm $PIDFILELOGIN
+	rm $PIDFILECUTLOG
+	rm $PIDFILETLS
+	wget --no-check-certificate -T 2 -O /dev/null 'https://192.168.23.21:8443/accountLogoff/home?confirmed=true'
+	logger -t BTWi-fi_Autologin_Service "$(date) BTWi-fi Autologin Service Stopped Manually (Or Reboot)"
+	echo "$(date) SERVICE STOP! BTWi-fi Autologin Service Stopped Manually (Or Reboot)" >> "$LOGPATH"
+}
+
+tls_loop(){
+while true
+do
+if opkg list-installed | grep -E "openssl-util|libustream-mbedtls" >/dev/null 2>&1 
+then
+	echo "$(date) SSL/TLS libraries are already installed. Exiting TLS installation loop." >> "$LOGPATH"
+	logger -t TLS_Installer "$(date) SSL/TLS libraries are already installed. Exiting TLS installation loop."
+	touch /tmp/tls_completed
+	rm $PIDFILETLS
+	exit 0
+fi
+if [ "$(uname -r | awk -F. '{print $1*10000 + $2*100 + $3}' )" -le 50000 ]
+then
+	if [ "$(uname -r | awk -F. '{print $1*10000 + $2*100 + $3}' )" -le 40000 ]
+	then
+		echo "$(date) OpenWrt v15 Detected, Installing Required Dependency 'openssl-util'" >> "$LOGPATH"
+		logger -t TLS_Installer "$(date) OpenWrt v15, Installing Required Dependency 'openssl-util'"
+			if [ -e "/usr/lib/opkg/info/openssl-util.list" ]
+			then
+				echo "$(date) 'openssl-util' Is Installed! Exiting Install Loop" >> "$LOGPATH"
+				logger -t TLS_Installer "$(date) TLS Is Installed! Exiting Install Loop"
+				touch /tmp/tls_completed
+				kill "$(cat $PIDFILETLS)"
+				rm $PIDFILETLS
+				exit 0
+			else
+				echo "$(date) Checking Internet To Install 'openssl-util'..." >> "$LOGPATH"
+				logger -t TLS_Installer "$(date) Checking Internet To Install 'openssl-util'..."
+					if ping -c 2 -W 1 8.8.8.8 2>/dev/null >/dev/null
+					then
+						echo "$(date) Internet Connected, Installing 'openssl-util'" >> "$LOGPATH"
+						logger -t TLS_Installer "$(date) Internet Connected, Installing 'openssl-util'"
+						opkg update && opkg install openssl-util
+						echo "$(date) 'openssl-util' Installed Sucesfully!" >> "$LOGPATH"
+						logger -t TLS_Installer "$(date) 'openssl-util' Installed Sucesfully!"
+					else
+						echo "$(date) WARNING! No Internet Will Try Again In 30 Seconds" >> "$LOGPATH"
+						logger -t TLS_Installer "$(date) WARNING! No Internet Will Try Again In 30 Seconds"
+					fi
+				fi
+	else
+		echo "$(date) TLS INSTALLER OpenWrt v19 Or Older Detected, Installing Required Dependency 'libustream-mbedtls'" >> "$LOGPATH"
+		logger -t TLS_Installer "$(date) OpenWrt v19 Or Older Detected, Installing Required Dependency 'libustream-mbedtls'"
+			if [ -e "/usr/lib/opkg/info/libmbedtls.list" ]
+			then
+				echo "$(date) 'libustream-mbedtls' Is Installed! Exiting Install Loop" >> "$LOGPATH"
+				logger -t TLS_Installer "$(date) 'libustream-mbedtls' Is Installed! Exiting Install Loop"
+				touch /tmp/tls_completed
+				kill "$(cat $PIDFILETLS)"
+				rm $PIDFILETLS
+				exit 0
+			else
+				echo "$(date) Checking Internet To Install 'libustream-mbedtls'..." >> "$LOGPATH"
+				logger -t TLS_Installer "$(date) Checking Internet To Install 'libustream-mbedtls'..."
+				if ping -c 2 -W 1 8.8.8.8 2>/dev/null >/dev/null
+				then
+					echo "$(date) TLS INSTALLER Internet Connected, Installing 'libustream-mbedtls'" >> "$LOGPATH"
+					logger -t TLS_Installer "$(date) Internet Connected, Installing 'libustream-mbedtls'"
+					opkg update && opkg install libustream-mbedtls
+					echo "$(date) 'libustream-mbedtls' Installed Sucesfully!" >> "$LOGPATH"
+					logger -t TLS_Installer "$(date) 'libustream-mbedtls' Installed Sucesfully!"
+					touch /tmp/tls_completed
+					kill "$(cat $PIDFILETLS)"
+					rm $PIDFILETLS
+					exit 0
+				else
+					echo "$(date) WARNING! No Internet Will Try Again In 30 Seconds" >> "$LOGPATH"
+					logger -t TLS_Installer "$(date) WARNING! NO Internet Will Try Again In 30 Seconds"
+				fi
+			fi
+		fi
+else
+	echo "$(date) OpenWrt v20 Or Newer Detected, 'libustream-mbedtls' Or 'openssl-util' NOT REQUIRED!" >> "$LOGPATH"
+	logger -t TLS_Installer "$(date) OpenWrt v20 Or Newer Detected, 'libustream-mbedtls' Or 'openssl-util' NOT REQUIRED!"
+	touch /tmp/tls_completed
+	kill "$(cat $PIDFILETLS)"
+	rm $PIDFILETLS
+	exit 0
+fi
+sleep 30
+done
+}
+
+btwifi_loop(){
+while true
+do
+if [ -e /tmp/tls_completed ]
+then
+	if ! ping -c 1 -W 1 "$PING1" 2>/dev/null >/dev/null	 
+	then
+		if ! ping -c 1 -W 1 "$PING2" 2>/dev/null >/dev/null			 
+		then
+			if [ "$ACCOUNTTYPE" = "1" ]
+			then
+				logger -t BTWi-fi_Autologin_Service "$(date) Offline, attempting login URL 1 (BT Home Broadband Account)"
+				echo "$(date) Offline, attempting login URL 1 (EE Home Broadband Account)" >> "$LOGPATH"
+				wget --no-check-certificate -T 2 -O /dev/null --post-data "username=$USERNAME&password=$PASSWORD" 'https://192.168.23.21:8443/tbbLogon'
+			elif [ "$ACCOUNTTYPE" = "2" ]
+			then
+				logger -t BTWi-fi_Autologin_Service "$(date) Offline, attempting login URL 2 (BT Buisness Broadband Account)"
+				echo "$(date) Offline, attempting login URL 2 (BT Buisness Broadband Account)" >> "$LOGPATH"
+				wget --no-check-certificate -T 2 -O /dev/null --post-data "username=$USERNAME&password=$PASSWORD" 'https://192.168.23.21:8443/ante?partnerNetwork=btb'
+			elif [ "$ACCOUNTTYPE" = "3" ]
+			then
+				logger -t BTWi-fi_Autologin_Service "$(date) Offline, attempting login URL 3 (BT Wi-Fi Account)"
+				echo "$(date) Offline, attempting login URL 3 (BT Wi-Fi Account)" >> "$LOGPATH"
+				wget --no-check-certificate -T 2 -O /dev/null --post-data "username=$USERNAME&password=$PASSWORD" 'https://192.168.23.21:8443/ante'
+			fi
+		fi
+	fi
+fi
+sleep 1
+done
+}
+
+cleanlog_loop(){
+while true
+do
+if [ -f "$LOGPATH" ] 
+then
+	LOGLINE=$(wc -l < "$LOGPATH")
+	if [ "$LOGLINE" -ge "$LOGSIZE" ]
+	then
+		tail -"$LOGSIZE" "$LOGPATH" > "$LOGPATH.tmp"
+		mv "$LOGPATH.tmp" "$LOGPATH"
+	fi
+fi
+sleep 60
