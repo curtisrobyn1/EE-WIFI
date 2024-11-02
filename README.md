@@ -1,7 +1,7 @@
 #!/bin/sh /etc/rc.common
 
 #######--  EE Wi-Fi Autologin Service Openwrt v5 --########
-#######-    By: Aidan Macgregor (September 2023)  -########
+#######-    By: CURTIS NEILL (September 2024)  -########
 
 #######-    h https://github.com/curtisrobyn1/EE-WIFI/new/main?filename=README.md    -########
 #######--  (Tested On OpenWrt 15.05.1 - 23.05)   --########
@@ -47,7 +47,7 @@ PIDFILETLS=/var/run/TLS_Installer.pid
 OPENWRT_VERSION=$(cat /etc/openwrt_release | grep '^DISTRIB_RELEASE' | awk -F= '{print $2}' | tr -d '"')
 
 start() {
-logger -t EEWi-fi_Autologin_Service "$(date) BTWi-fi Autologin Service Started"
+logger -t EEWi-fi_Autologin_Service "$(date) EEWi-fi Autologin Service Started"
 echo "$(date) SERVICE START! EEWI-fi Autologin Service" >> "$LOGPATH"
 if [ -n "$OPENWRT_VERSION" ]
 then
@@ -63,7 +63,7 @@ else
 	printf "%s" "$!" > $PIDFILETLS
 	[ -f $PIDFILELOGIN ] && [ ! -d /proc/"$(cat $PIDFILELOGIN)" ] && rm $PIDFILELOGIN
 	[ -f $PIDFILELOGIN ] && exit 1
-	btwifi_loop &
+	EEwifi_loop &
 	printf "%s" "$!" > $PIDFILELOGIN
 	[ -f $PIDFILECUTLOG ] && [ ! -d /proc/"$(cat $PIDFILECUTLOG)" ] && rm $PIDFILECUTLOG
 	[ -f $PIDFILECUTLOG ] && exit 1
@@ -87,7 +87,7 @@ stop() {
 	rm $PIDFILETLS
 	wget --no-check-certificate -T 2 -O /dev/null 'https://192.168.23.21:8443/accountLogoff/home?confirmed=true'
 	logger -t EEWi-fi_Autologin_Service "$(date) EEWi-fi Autologin Service Stopped Manually (Or Reboot)"
-	echo "$(date) SERVICE STOP! BTWi-fi Autologin Service Stopped Manually (Or Reboot)" >> "$LOGPATH"
+	echo "$(date) SERVICE STOP! EEWi-fi Autologin Service Stopped Manually (Or Reboot)" >> "$LOGPATH"
 }
 
 tls_loop(){
@@ -173,7 +173,7 @@ sleep 30
 done
 }
 
-btwifi_loop(){
+EEwifi_loop(){
 while true
 do
 if [ -e /tmp/tls_completed ]
@@ -189,7 +189,7 @@ then
 				wget --no-check-certificate -T 2 -O /dev/null --post-data "username=$USERNAME&password=$PASSWORD" 'https://192.168.23.21:8443/tbbLogon'
 			elif [ "$ACCOUNTTYPE" = "2" ]
 			then
-				logger -t BTWi-fi_Autologin_Service "$(date) Offline, attempting login URL 2 (EE Buisness Broadband Account)"
+				logger -t EEWi-fi_Autologin_Service "$(date) Offline, attempting login URL 2 (EE Buisness Broadband Account)"
 				echo "$(date) Offline, attempting login URL 2 (EE Buisness Broadband Account)" >> "$LOGPATH"
 				wget --no-check-certificate -T 2 -O /dev/null --post-data "username=$USERNAME&password=$PASSWORD" 'https://192.168.23.21:8443/ante?partnerNetwork=btb'
 			elif [ "$ACCOUNTTYPE" = "3" ]
